@@ -1,0 +1,36 @@
+# --- Local-only Claude context (must never be pushed) ---
+claude.local.md
+
+# --- Secrets ---
+.env
+.env.*
+!.env.example
+
+# --- Go build artifacts ---
+/bin/
+/dist/
+/tmp/
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+*.test
+*.out
+
+# Coverage
+coverage.*
+*.coverprofile
+
+# --- Dependency directories (using Go modules, no vendor by default) ---
+/vendor/
+
+# --- IDE / editor ---
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# --- OS ---
+.DS_Store
+Thumbs.db
