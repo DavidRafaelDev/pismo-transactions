@@ -1,12 +1,33 @@
 package httpapi
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
+	"time"
 )
 
-func HealthHandler(w http.ResponseWriter, _ *http.Request) {
+// Pinger is defined here (the consumer) so tests can inject a fake without
+// pulling in database/sql. *sql.DB satisfies it implicitly.
+type Pinger interface {
+	PingContext(ctx context.Context) error
+}
+
+func HealthHandler(p Pinger) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		ctx, cancel := context.WithTimeout(r.Context(), 200*time.Millisecond)
+		defer cancel()
+
+		if err := p.PingContext(ctx); err != nil {
+			writeJSON(w, http.StatusServiceUnavailable, map[string]string{"status": "unhealthy"})
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
+	}
+}
+
+func writeJSON(w http.ResponseWriter, code int, body any) {
 	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusOK)
-	_ = json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
+	w.WriteHeader(code)
+	_ = json.NewEncoder(w).Encode(body)
 }

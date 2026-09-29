@@ -1,5 +1,5 @@
 # --- builder ---
-FROM golang:1.23-alpine AS builder
+FROM golang:1.25-alpine AS builder
 WORKDIR /src
 
 # cache dependencies layer (go.sum may not exist yet in early stages)
