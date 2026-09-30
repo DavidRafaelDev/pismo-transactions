@@ -1,9 +1,20 @@
 package httpapi
 
-import "net/http"
+import (
+	"log/slog"
+	"net/http"
+)
 
-func NewRouter(p Pinger) http.Handler {
+func NewRouter(
+	p Pinger,
+	accounts *AccountsHandler,
+	transactions *TransactionsHandler,
+	logger *slog.Logger,
+) http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /health", HealthHandler(p))
-	return mux
+	mux.HandleFunc("POST /accounts", accounts.Create)
+	mux.HandleFunc("GET /accounts/{id}", accounts.Get)
+	mux.HandleFunc("POST /transactions", transactions.Create)
+	return withLogging(mux, logger)
 }

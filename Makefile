@@ -1,4 +1,4 @@
-.PHONY: up down clean run test build
+.PHONY: up down clean run test build logs
 
 up: ## start API + MySQL via docker compose
 	docker compose up -d --build
@@ -17,3 +17,6 @@ test: ## run unit and handler tests
 
 build: ## build the API binary to bin/api
 	go build -o bin/api ./cmd/api
+
+logs: ## follow API container logs
+	docker compose logs -f api

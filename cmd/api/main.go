@@ -12,6 +12,8 @@ import (
 	"github.com/DavidRafaelDev/pismo-transactions/internal/db"
 	"github.com/DavidRafaelDev/pismo-transactions/internal/httpapi"
 	"github.com/DavidRafaelDev/pismo-transactions/internal/migrate"
+	mysqlrepo "github.com/DavidRafaelDev/pismo-transactions/internal/repository/mysql"
+	"github.com/DavidRafaelDev/pismo-transactions/internal/service"
 )
 
 func main() {
@@ -34,14 +36,26 @@ func main() {
 	}
 	logger.Info("migrations.applied")
 
+	// Wire: repositories -> services -> handlers -> router.
+	accountRepo := mysqlrepo.NewAccountRepository(database)
+	transactionRepo := mysqlrepo.NewTransactionRepository(database)
+
+	accountSvc := service.NewAccountService(accountRepo)
+	transactionSvc := service.NewTransactionService(accountRepo, transactionRepo)
+
+	accountsHandler := httpapi.NewAccountsHandler(accountSvc)
+	transactionsHandler := httpapi.NewTransactionsHandler(transactionSvc)
+
+	router := httpapi.NewRouter(database, accountsHandler, transactionsHandler, logger)
+
 	srv := &http.Server{
 		Addr:    cfg.HTTPAddr,
-		Handler: httpapi.NewRouter(database),
+		Handler: router,
 	}
 
-	logger.Info("api starting", "addr", cfg.HTTPAddr)
+	logger.Info("api.starting", "addr", cfg.HTTPAddr)
 	if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
-		logger.Error("server exited", "err", err)
+		logger.Error("server.exited", "err", err)
 		os.Exit(1)
 	}
 }
