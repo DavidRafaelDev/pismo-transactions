@@ -1,0 +1,238 @@
+openapi: 3.0.3
+info:
+  title: Pismo Transactions API
+  description: |
+    REST service that manages cardholder accounts and their transactions.
+
+    Every transaction has a sign applied by the server based on the operation
+    type: 1 (Normal Purchase), 2 (Purchase with Installments) and 3 (Withdrawal)
+    are stored as negative; 4 (Credit Voucher) is stored as positive.
+    The client always sends a positive amount.
+  version: 1.0.0
+  license:
+    name: MIT
+
+servers:
+  - url: http://localhost:8080
+    description: Local development
+
+paths:
+  /health:
+    get:
+      summary: Liveness and readiness probe
+      description: Returns 200 when the API can reach the database, 503 otherwise.
+      responses:
+        '200':
+          description: Service healthy
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthOK'
+        '503':
+          description: Database unreachable
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthUnhealthy'
+
+  /accounts:
+    post:
+      summary: Create an account
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateAccountRequest'
+      responses:
+        '201':
+          description: Account created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Account'
+        '400':
+          description: Invalid request body or document number
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '409':
+          description: An account with this document_number already exists
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /accounts/{id}:
+    get:
+      summary: Retrieve an account by id
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+            format: int64
+            minimum: 1
+          example: 1
+      responses:
+        '200':
+          description: Account found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Account'
+        '400':
+          description: Invalid id (not a positive integer)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Account not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /transactions:
+    post:
+      summary: Create a transaction for an existing account
+      description: |
+        The client always sends a positive amount. The server applies the sign
+        based on operation_type_id (negative for 1/2/3, positive for 4) and sets
+        event_date to now in UTC.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateTransactionRequest'
+      responses:
+        '201':
+          description: Transaction created (amount in the response is signed)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Transaction'
+        '400':
+          description: Invalid body, operation type or amount
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '422':
+          description: account_id does not exist
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+components:
+  schemas:
+    CreateAccountRequest:
+      type: object
+      required: [document_number]
+      additionalProperties: false
+      properties:
+        document_number:
+          type: string
+          description: Digits only. 11 characters (CPF) or 14 characters (CNPJ).
+          example: "12345678900"
+
+    Account:
+      type: object
+      required: [account_id, document_number]
+      properties:
+        account_id:
+          type: integer
+          format: int64
+          example: 1
+        document_number:
+          type: string
+          example: "12345678900"
+
+    CreateTransactionRequest:
+      type: object
+      required: [account_id, operation_type_id, amount]
+      additionalProperties: false
+      properties:
+        account_id:
+          type: integer
+          format: int64
+          minimum: 1
+          example: 1
+        operation_type_id:
+          type: integer
+          minimum: 1
+          maximum: 4
+          description: |
+            1 = Normal Purchase (stored negative);
+            2 = Purchase with Installments (stored negative);
+            3 = Withdrawal (stored negative);
+            4 = Credit Voucher (stored positive).
+          example: 4
+        amount:
+          type: string
+          description: |
+            Positive decimal with at most 2 decimal places. Encoded as string
+            to avoid float precision loss (JSON numbers are IEEE-754).
+          example: "123.45"
+
+    Transaction:
+      type: object
+      required: [transaction_id, account_id, operation_type_id, amount, event_date]
+      properties:
+        transaction_id:
+          type: integer
+          format: int64
+          example: 1
+        account_id:
+          type: integer
+          format: int64
+          example: 1
+        operation_type_id:
+          type: integer
+          example: 4
+        amount:
+          type: string
+          description: Signed by the server (negative for 1/2/3, positive for 4).
+          example: "123.45"
+        event_date:
+          type: string
+          format: date-time
+          description: Set by the server in UTC at creation time.
+          example: "2026-09-30T02:22:48.851288798Z"
+
+    HealthOK:
+      type: object
+      properties:
+        status:
+          type: string
+          enum: [ok]
+          example: ok
+
+    HealthUnhealthy:
+      type: object
+      properties:
+        status:
+          type: string
+          enum: [unhealthy]
+          example: unhealthy
+
+    Error:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: object
+          required: [code, message]
+          properties:
+            code:
+              type: string
+              description: snake_case error identifier
+              example: invalid_document_number
+            message:
+              type: string
+              example: "invalid document number: expected 11 or 14 digits"

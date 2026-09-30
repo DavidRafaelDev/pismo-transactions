@@ -1,0 +1,40 @@
+#!/usr/bin/env bash
+# ./run — one-command boot of the pismo-transactions stack.
+# Starts API + MySQL via docker compose, waits for /health, and prints
+# a summary of what to hit next.
+
+set -euo pipefail
+
+echo "==> building and starting containers"
+make up
+
+printf "==> waiting for API /health "
+for _ in $(seq 1 30); do
+  if curl -sf -o /dev/null http://localhost:8080/health; then
+    echo " ok"
+    cat <<EOF
+
+READY — API on http://localhost:8080
+
+Try:
+  curl -s http://localhost:8080/health
+  curl -s -X POST http://localhost:8080/accounts \\
+       -H 'Content-Type: application/json' \\
+       -d '{"document_number":"12345678900"}'
+
+Full API contract: docs/openapi.yaml (paste into https://editor.swagger.io)
+
+Stop the stack:  make down     (keeps DB data)
+Reset the DB:    make clean    (removes the volume)
+Follow logs:     make logs
+EOF
+    exit 0
+  fi
+  printf "."
+  sleep 1
+done
+
+echo
+echo "warning: /health did not respond within 30s"
+echo "check container logs with: docker compose logs api"
+exit 1
